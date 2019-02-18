@@ -11,10 +11,10 @@ bootstrap:
   version: 4
   css:
     theme:
-      https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css: {type: external}
+      css/bootstrap.min.css: {}
   js:
-    https://cdnjs.cloudflare.com/ajax/libs/tether/1.4.0/js/tether.min.js: {type: external}
-    https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/js/bootstrap.min.js: {type: external}
+    js/tether.min.js: {}
+    js/bootstrap.min.js: {}
   dependencies:
     - core/jquery
 flex-vertical-center:
