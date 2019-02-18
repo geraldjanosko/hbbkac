@@ -91,7 +91,7 @@ display:
             alter_text: true
             text: "Formated: {{ field_link }}<br />\nRaw uri: {{ field_link__uri }}<br />\nRaw title: {{ field_link__title }}<br />\nRaw options: {{ field_link__options }}."
             make_link: false
-            path: ''
+            path: '{{ field_link__uri }}'
             absolute: false
             external: false
             replace_spaces: false
@@ -127,7 +127,7 @@ display:
           empty_zero: false
           hide_alter_empty: true
           click_sort_column: uri
-          type: link_separate
+          type: link
           settings:
             trim_length: 80
             url_only: false
