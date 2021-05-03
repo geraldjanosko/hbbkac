@@ -8,10 +8,8 @@
         "wikimedia/composer-merge-plugin": "^1.4",
         "drupal/webform": "^5.25",
         "drupal/recaptcha": "^3.0",
-        "drupal/console": "^1.9"
-    },
-    "replace": {
-        "drupal/core": "^8.6"
+        "drupal/console": "^1.9",
+        "drupal/core": "^8.9"
     },
     "minimum-stability": "dev",
     "prefer-stable": true,
