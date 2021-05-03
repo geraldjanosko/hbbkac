@@ -3,7 +3,7 @@
 namespace Drupal\webform\Plugin\WebformElement;
 
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\webform\WebformElementBase;
+use Drupal\webform\Plugin\WebformElementBase;
 use Drupal\webform\WebformInterface;
 use Drupal\webform\WebformSubmissionInterface;
 
@@ -15,24 +15,25 @@ abstract class NumericBase extends WebformElementBase {
   /**
    * {@inheritdoc}
    */
-  public function getDefaultProperties() {
-    return parent::getDefaultProperties() + [
+  protected function defineDefaultProperties() {
+    return [
       // Form validation.
+      'readonly' => FALSE,
       'size' => '',
-      'minlength' => '',
-      'maxlength' => '',
       'placeholder' => '',
       'autocomplete' => 'on',
-    ];
+    ] + parent::defineDefaultProperties();
   }
+
+  /****************************************************************************/
 
   /**
    * {@inheritdoc}
    */
-  public function prepare(array &$element, WebformSubmissionInterface $webform_submission) {
+  public function prepare(array &$element, WebformSubmissionInterface $webform_submission = NULL) {
     parent::prepare($element, $webform_submission);
     if ($this->hasProperty('step') && !isset($element['#step'])) {
-      $element['#step'] = 'any';
+      $element['#step'] = $this->getDefaultProperty('step') ?: 'any';
     }
   }
 
@@ -41,6 +42,12 @@ abstract class NumericBase extends WebformElementBase {
    */
   public function getTestValues(array $element, WebformInterface $webform, array $options = []) {
     $element += ['#min' => 1, '#max' => 10];
+    if (is_string($element['#min'])) {
+      $element['#min'] = $this->tokenManager->replace($element['#min'], $webform);
+    }
+    if (is_string($element['#max'])) {
+      $element['#max'] = $this->tokenManager->replace($element['#max'], $webform);
+    }
     return [
       $element['#min'],
       floor((($element['#max'] - $element['#min']) / 2) + $element['#min']),
@@ -58,28 +65,47 @@ abstract class NumericBase extends WebformElementBase {
       '#type' => 'fieldset',
       '#title' => $this->t('Number settings'),
     ];
-    $form['number']['min'] = [
+    $form['number']['number_container'] = $this->getFormInlineContainer();
+    $form['number']['number_container']['min'] = [
       '#type' => 'number',
-      '#title' => $this->t('Min'),
+      '#title' => $this->t('Minimum'),
       '#description' => $this->t('Specifies the minimum value.'),
       '#step' => 'any',
       '#size' => 4,
     ];
-    $form['number']['max'] = [
+    $form['number']['number_container']['max'] = [
       '#type' => 'number',
-      '#title' => $this->t('Max'),
+      '#title' => $this->t('Maximum'),
       '#description' => $this->t('Specifies the maximum value.'),
       '#step' => 'any',
       '#size' => 4,
     ];
-    $form['number']['step'] = [
+    $form['number']['number_container']['step'] = [
       '#type' => 'number',
       '#title' => $this->t('Steps'),
-      '#description' => $this->t('Specifies the legal number intervals. Leave blank to support any number interval.'),
+      '#description' => $this->t('Specifies the legal number intervals. Leave blank to support any number interval. Decimals are supported.'),
       '#step' => 'any',
       '#size' => 4,
     ];
     return $form;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function validateConfigurationForm(array &$form, FormStateInterface $form_state) {
+    parent::validateConfigurationForm($form, $form_state);
+
+    // Validate min/max value.
+    $min = $form_state->getValue('min');
+    $max = $form_state->getValue('max');
+    if (($min === '' || !isset($min)) || ($max === '' ||  !isset($max))) {
+      return;
+    }
+
+    if ($min >= $max) {
+      $form_state->setErrorByName('min', $this->t('Minimum value can not exceed the maximum value.'));
+    }
   }
 
 }

@@ -12,9 +12,10 @@ use Drupal\webform\WebformSubmissionInterface;
  *
  * @WebformElement(
  *   id = "webform_actions",
+ *   default_key = "actions",
  *   label = @Translation("Submit button(s)"),
  *   description = @Translation("Provides an element that contains a Webform's submit, draft, wizard, and/or preview buttons."),
- *   category = @Translation("Actions"),
+ *   category = @Translation("Buttons"),
  * )
  */
 class WebformActions extends ContainerBase {
@@ -22,22 +23,25 @@ class WebformActions extends ContainerBase {
   /**
    * {@inheritdoc}
    */
-  public function getDefaultProperties() {
+  protected function defineDefaultProperties() {
     $properties = [
       // Title.
       'title' => '',
       // Attributes.
       'attributes' => [],
-      // Conditional logic.
-      'states' => [],
-    ];
-    foreach (WebformActionsElement::$buttons as $button) {
+    ] + $this->defineDefaultBaseProperties();
+    $buttons = array_merge(WebformActionsElement::$buttons, ['update']);
+    foreach ($buttons as $button) {
       $properties[$button . '_hide'] = FALSE;
       $properties[$button . '__label'] = '';
       $properties[$button . '__attributes'] = [];
     }
+    $properties['delete_hide'] = TRUE;
+    $properties['delete__dialog'] = FALSE;
     return $properties;
   }
+
+  /****************************************************************************/
 
   /**
    * {@inheritdoc}
@@ -57,13 +61,27 @@ class WebformActions extends ContainerBase {
    * {@inheritdoc}
    */
   public function isRoot() {
-    return TRUE;
+    return FALSE;
   }
 
   /**
    * {@inheritdoc}
    */
   protected function build($format, array &$element, WebformSubmissionInterface $webform_submission, array $options = []) {
+    return [];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getItemDefaultFormat() {
+    return NULL;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getItemFormats() {
     return [];
   }
 
@@ -79,6 +97,13 @@ class WebformActions extends ContainerBase {
   /**
    * {@inheritdoc}
    */
+  public function preview() {
+    return [];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function form(array $form, FormStateInterface $form_state) {
     $form = parent::form($form, $form_state);
 
@@ -89,9 +114,10 @@ class WebformActions extends ContainerBase {
       '#type' => 'fieldset',
       '#title' => $this->t('Buttons'),
     ];
-    $draft_enabled = ($webform->getSetting('draft') != WebformInterface::DRAFT_ENABLED_NONE);
+    $draft_enabled = ($webform->getSetting('draft') !== WebformInterface::DRAFT_NONE);
+    $reset_enabled = $webform->getSetting('form_reset');
     $wizard_enabled = $webform->hasWizardPages();
-    $preview_enabled = ($webform->getSetting('preview') != DRUPAL_DISABLED);
+    $preview_enabled = ($webform->getSetting('preview') !== DRUPAL_DISABLED);
 
     $buttons = [
       'submit' => [
@@ -99,10 +125,21 @@ class WebformActions extends ContainerBase {
         'label' => $this->t('submit'),
         'access' => TRUE,
       ],
+      'reset' => [
+        'title' => $this->t('Reset'),
+        'label' => $this->t('reset'),
+        'access' => $reset_enabled,
+      ],
       'draft' => [
         'title' => $this->t('Draft'),
         'label' => $this->t('draft'),
         'access' => $draft_enabled,
+      ],
+      'update' => [
+        'title' => $this->t('Update'),
+        'label' => $this->t('update'),
+        'description' => $this->t('This is used after a submission has been saved and finalized to the database.'),
+        'access' => !$webform->isResultsDisabled(),
       ],
       'wizard_prev' => [
         'title' => $this->t('Wizard previous'),
@@ -119,14 +156,20 @@ class WebformActions extends ContainerBase {
       'preview_prev' => [
         'title' => $this->t('Preview previous'),
         'label' => $this->t('preview previous'),
-        'description' => $this->t('The text for the button that will proceed to the preview page.'),
+        'description' => $this->t('The text for the button to go backwards from the preview page.'),
         'access' => $preview_enabled,
       ],
       'preview_next' => [
         'title' => $this->t('Preview next'),
         'label' => $this->t('preview next'),
-        'description' => $this->t('The text for the button to go backwards from the preview page.'),
+        'description' => $this->t('The text for the button that will proceed to the preview page.'),
         'access' => $preview_enabled,
+      ],
+      'delete' => [
+        'title' => $this->t('Delete'),
+        'label' => $this->t('delete'),
+        'description' => $this->t('This is displayed after a draft or submission has been saved to the database. The delete button is also included within the submission information.'),
+        'access' => !$webform->isResultsDisabled(),
       ],
     ];
 
@@ -146,7 +189,7 @@ class WebformActions extends ContainerBase {
       ];
       if (!empty($button['description'])) {
         $form[$name . '_settings']['description'] = [
-          '#markup' => $button['description'],
+          '#markup' => '<p>' . $button['description'] . '</p>',
           '#access' => TRUE,
         ];
       }
@@ -155,11 +198,11 @@ class WebformActions extends ContainerBase {
         '#title' => $this->t('Hide @label button', $t_args),
         '#return_value' => TRUE,
       ];
-      if (strpos($name, '_prev') === FALSE) {
+      if (strpos($name, '_prev') === FALSE && !in_array($name, ['delete', 'reset'])) {
         $form[$name . '_settings'][$name . '_hide_message'] = [
           '#type' => 'webform_message',
           '#access' => TRUE,
-          '#message_message' => $this->t('Hiding the %label button can cause unexpected issues, please make sure to include the %label button using another actions element.', $t_args),
+          '#message_message' => $this->t("Hiding the %label button can cause unexpected issues, please make sure to include the %label button using another 'Submit button(s)' element.", $t_args),
           '#message_type' => 'warning',
           '#states' => [
             'visible' => [':input[name="properties[' . $name . '_hide]"]' => ['checked' => TRUE]],
@@ -189,6 +232,15 @@ class WebformActions extends ContainerBase {
         ],
       ];
     }
+
+    $form['delete_settings']['delete__dialog'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Open delete confirmation form in a modal dialog.'),
+      '#states' => [
+        'visible' => [':input[name="properties[delete_hide]"]' => ['checked' => FALSE]],
+      ],
+    ];
+
     return $form;
   }
 
@@ -198,13 +250,19 @@ class WebformActions extends ContainerBase {
   public function buildConfigurationForm(array $form, FormStateInterface $form_state) {
     $form = parent::buildConfigurationForm($form, $form_state);
 
-    /** @var \Drupal\webform\WebformInterface $webform */
-    $webform = $form_state->getFormObject()->getWebform();
+    /** @var \Drupal\webform_ui\Form\WebformUiElementEditForm $form_object */
+    $form_object = $form_state->getFormObject();
 
-    if (!$webform->hasActions()) {
-      $form['element']['title']['#default_value'] = $this->t('Submit button(s)');
-      $this->key = 'acccc';
+    if (!$form_object->getWebform()->hasActions()) {
+      $form['element']['title']['#default_value'] = (string) $this->t('Submit button(s)');
     }
+
+    // Hide element settings for default 'actions' to prevent UX confusion.
+    $key = $form_object->getKey() ?: $form_object->getDefaultKey();
+    if ($key === 'actions') {
+      $form['element']['#access'] = FALSE;
+    }
+
     return $form;
   }
 

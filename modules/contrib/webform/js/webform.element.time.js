@@ -26,18 +26,17 @@
         return;
       }
 
-      var $context = $(context);
-      // Skip if time inputs are supported by the browser.
-      if (Modernizr.inputtypes.time === true) {
-        return;
-      }
-      $context.find('input[type="time"]').once('timePicker').each(function () {
+      $(context).find('input[data-webform-time-format]').once('webformTimePicker').each(function () {
         var $input = $(this);
 
-        var options = {};
-        if ($input.data('webformTimeFormat')) {
-          options.timeFormat = $input.data('webformTimeFormat');
+        // Skip if time inputs are supported by the browser and input is not a text field.
+        // @see \Drupal\webform\Element\WebformDatetime
+        if (window.Modernizr && Modernizr.inputtypes && Modernizr.inputtypes.time === true && $input.attr('type') !== 'text') {
+          return;
         }
+
+        var options = {};
+        options.timeFormat = $input.data('webformTimeFormat');
         if ($input.attr('min')) {
           options.minTime = $input.attr('min');
         }
@@ -58,11 +57,16 @@
           options.step = 1;
         }
 
+        // Set step to 'any' to prevent clientside validation issues.
+        // @see \Drupal\clientside_validation\Plugin\CvValidator\Step
+        // @see https://www.drupal.org/project/clientside_validation/issues/2941434
+        $input.attr('step', 'any');
+
         options = $.extend(options, Drupal.webform.timePicker.options);
 
         $input.timepicker(options);
       });
     }
-  }
+  };
 
 })(jQuery, Drupal);

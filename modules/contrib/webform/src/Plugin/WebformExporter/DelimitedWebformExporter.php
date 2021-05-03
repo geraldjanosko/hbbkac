@@ -22,6 +22,7 @@ class DelimitedWebformExporter extends TabularBaseWebformExporter {
   public function defaultConfiguration() {
     return parent::defaultConfiguration() + [
       'delimiter' => ',',
+      'excel' => FALSE,
     ];
   }
 
@@ -30,9 +31,7 @@ class DelimitedWebformExporter extends TabularBaseWebformExporter {
    */
   public function setConfiguration(array $configuration) {
     parent::setConfiguration($configuration);
-    if ($this->configuration['delimiter'] == '\t') {
-      $this->configuration['delimiter'] = "\t";
-    }
+    $this->configuration['delimiter'] = ($this->configuration['delimiter'] === '\t') ? "\t" : $this->configuration['delimiter'];
     return $this;
   }
 
@@ -40,20 +39,11 @@ class DelimitedWebformExporter extends TabularBaseWebformExporter {
    * {@inheritdoc}
    */
   public function buildConfigurationForm(array $form, FormStateInterface $form_state) {
-    if (isset($form['delimiter'])) {
-      return $form;
-    }
-
-    $states = [
-      'visible' => [
-        [':input.js-webform-exporter' => ['value' => 'delimited']],
-      ],
-    ];
+    $form = parent::buildConfigurationForm($form, $form_state);
     $form['warning'] = [
       '#type' => 'webform_message',
       '#message_type' => 'warning',
-      '#message_message' => $this->t('<strong>Warning:</strong> Opening delimited text files with spreadsheet applications may expose you to <a href=":href">formula injection</a> or other security vulnerabilities. When the submissions contain data from untrusted users and the downloaded file will be used with spreadsheets, use Microsoft Excel format.', [':href' => 'https://www.google.com/search?q=spreadsheet+formula+injection']),
-      '#states' => $states,
+      '#message_message' => $this->t('<strong>Warning:</strong> Opening delimited text files with spreadsheet applications may expose you to <a href=":href">formula injection</a> or other security vulnerabilities. When the submissions contain data from untrusted users and the downloaded file will be used with Microsoft Excel, use \'HTML table\' format.', [':href' => 'https://www.google.com/search?q=spreadsheet+formula+injection']),
     ];
     $form['delimiter'] = [
       '#type' => 'select',
@@ -69,8 +59,14 @@ class DelimitedWebformExporter extends TabularBaseWebformExporter {
         '.'  => $this->t('Period (.)'),
         ' '  => $this->t('Space ( )'),
       ],
-      '#states' => $states,
-      '#default_value' => $this->configuration['delimiter'],
+      '#default_value' => ($this->configuration['delimiter'] === "\t") ? '\t' : $this->configuration['delimiter'],
+    ];
+    $form['excel'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Generate Excel compatible file'),
+      '#description' => $this->t("If checked, the generated file's carriage returns will be compatible with Excel and a marker flagging the data as UTF-8 will be added at the beginning."),
+      '#return_value' => TRUE,
+      '#default_value' => $this->configuration['excel'],
     ];
     return $form;
   }
@@ -92,6 +88,9 @@ class DelimitedWebformExporter extends TabularBaseWebformExporter {
    * {@inheritdoc}
    */
   public function writeHeader() {
+    if ($this->configuration['excel']) {
+      fwrite($this->fileHandle, "\xEF\xBB\xBF");
+    }
     $header = $this->buildHeader();
     fputcsv($this->fileHandle, $header, $this->configuration['delimiter']);
   }
@@ -102,6 +101,21 @@ class DelimitedWebformExporter extends TabularBaseWebformExporter {
   public function writeSubmission(WebformSubmissionInterface $webform_submission) {
     $record = $this->buildRecord($webform_submission);
     fputcsv($this->fileHandle, $record, $this->configuration['delimiter']);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function buildRecord(WebformSubmissionInterface $webform_submission) {
+    $record = parent::buildRecord($webform_submission);
+    if ($this->configuration['excel']) {
+      foreach ($record as $index => $value) {
+        if (is_string($value)) {
+          $record[$index] = str_replace(PHP_EOL, "\r\n", $value);
+        }
+      }
+    }
+    return $record;
   }
 
 }

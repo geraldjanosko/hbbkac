@@ -7,6 +7,34 @@
 
   'use strict';
 
+  // Determine if local storage exists and is enabled.
+  // This approach is copied from Modernizr.
+  // @see https://github.com/Modernizr/Modernizr/blob/c56fb8b09515f629806ca44742932902ac145302/modernizr.js#L696-731
+  var hasLocalStorage = (function () {
+    try {
+      localStorage.setItem('webform', 'webform');
+      localStorage.removeItem('webform');
+      return true;
+    }
+    catch (e) {
+      return false;
+    }
+  }());
+
+  // Determine if session storage exists and is enabled.
+  // This approach is copied from Modernizr.
+  // @see https://github.com/Modernizr/Modernizr/blob/c56fb8b09515f629806ca44742932902ac145302/modernizr.js#L696-731
+  var hasSessionStorage = (function () {
+    try {
+      sessionStorage.setItem('webform', 'webform');
+      sessionStorage.removeItem('webform');
+      return true;
+    }
+    catch (e) {
+      return false;
+    }
+  }());
+
   /**
    * Behavior for handler message close.
    *
@@ -31,7 +59,12 @@
           return;
         }
 
-        $element.show().find('.js-webform-message__link').on('click', function (event) {
+        // Only show element if it's style is not set to 'display: none'.
+        if ($element.attr('style') !== 'display: none;') {
+          $element.show();
+        }
+
+        $element.find('.js-webform-message__link').on('click', function (event) {
           $element[effect]();
           setClosed($element, storage, id);
           $element.trigger('close');
@@ -48,13 +81,13 @@
 
     switch (storage) {
       case 'local':
-        if (window.localStorage) {
+        if (hasLocalStorage) {
           return localStorage.getItem('Drupal.webform.message.' + id) || false;
         }
         return false;
 
       case 'session':
-        if (window.sessionStorage) {
+        if (hasSessionStorage) {
           return sessionStorage.getItem('Drupal.webform.message.' + id) || false;
         }
         return false;
@@ -71,19 +104,20 @@
 
     switch (storage) {
       case 'local':
-        if (window.localStorage) {
+        if (hasLocalStorage) {
           localStorage.setItem('Drupal.webform.message.' + id, true);
         }
         break;
 
       case 'session':
-        if (window.sessionStorage) {
+        if (hasSessionStorage) {
           sessionStorage.setItem('Drupal.webform.message.' + id, true);
         }
         break;
 
       case 'user':
       case 'state':
+      case 'custom':
         $.get($element.find('.js-webform-message__link').attr('href'));
         return true;
     }

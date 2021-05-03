@@ -3,6 +3,7 @@
 namespace Drupal\webform\Element;
 
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Render\Element;
 use Drupal\Core\Render\Element\FormElement;
 
 /**
@@ -55,7 +56,7 @@ class WebformElementMultiple extends FormElement {
    * Processes element multiple.
    */
   public static function processWebformElementMultiple(&$element, FormStateInterface $form_state, &$complete_form) {
-    $cardinality = $element['#value'];
+    $cardinality = (int) $element['#value'];
 
     $element['#tree'] = TRUE;
 
@@ -74,11 +75,11 @@ class WebformElementMultiple extends FormElement {
         'number' => t('Limited'),
         WebformMultiple::CARDINALITY_UNLIMITED => t('Unlimited'),
       ],
-      '#default_value' => ($cardinality == WebformMultiple::CARDINALITY_UNLIMITED) ? WebformMultiple::CARDINALITY_UNLIMITED : 'number',
+      '#default_value' => ($cardinality === WebformMultiple::CARDINALITY_UNLIMITED) ? WebformMultiple::CARDINALITY_UNLIMITED : 'number',
     ];
     $element['container']['cardinality_number'] = [
       '#type' => 'number',
-      '#default_value' => $cardinality != WebformMultiple::CARDINALITY_UNLIMITED ? $cardinality : $element['#min'],
+      '#default_value' => $cardinality !== WebformMultiple::CARDINALITY_UNLIMITED ? $cardinality : $element['#min'],
       '#min' => $element['#min'],
       '#title' => t('Limit'),
       '#title_display' => 'invisible',
@@ -90,19 +91,19 @@ class WebformElementMultiple extends FormElement {
       ],
     ];
 
-    // Set disabled
+    // Set disabled.
     if (!empty($element['#disabled'])) {
       $element['container']['cardinality']['#disabled'] = TRUE;
       $element['container']['cardinality_number']['#disabled'] = TRUE;
     }
 
-    // Set validation.
-    if (isset($element['#element_validate'])) {
-      $element['#element_validate'] = array_merge([[get_called_class(), 'validateWebformElementMultiple']], $element['#element_validate']);
-    }
-    else {
-      $element['#element_validate'] = [[get_called_class(), 'validateWebformElementMultiple']];
-    }
+    // Add validate callback.
+    $element += ['#element_validate' => []];
+    array_unshift($element['#element_validate'], [get_called_class(), 'validateWebformElementMultiple']);
+
+    // Set #type to item to apply #states.
+    // @see \Drupal\Core\Form\FormHelper::processStates
+    $element['#type'] = 'item';
 
     return $element;
   }
@@ -111,26 +112,34 @@ class WebformElementMultiple extends FormElement {
    * Validates element multiple.
    */
   public static function validateWebformElementMultiple(&$element, FormStateInterface $form_state, &$complete_form) {
-    if (!empty($element['#disabled'])) {
+    if (!Element::isVisibleElement($element)) {
+      $multiple = $element['#value'];
+    }
+    elseif (!empty($element['#disabled'])) {
       $multiple = $element['#default_value'];
     }
     else {
-      $cardinality = $element['#value']['container']['cardinality'];
+      $cardinality = (int) $element['#value']['container']['cardinality'];
       $cardinality_number = (int) $element['#value']['container']['cardinality_number'];
-
-      if ($cardinality == WebformMultiple::CARDINALITY_UNLIMITED) {
-        $multiple = TRUE;
-      }
-      elseif ($cardinality_number === 1) {
-        $multiple = FALSE;
+      if ($cardinality === WebformMultiple::CARDINALITY_UNLIMITED) {
+        $multiple = WebformMultiple::CARDINALITY_UNLIMITED;
       }
       else {
         $multiple = $cardinality_number;
       }
     }
 
+    if ($multiple === WebformMultiple::CARDINALITY_UNLIMITED) {
+      $multiple = TRUE;
+    }
+    elseif ($multiple === 1) {
+      $multiple = FALSE;
+    }
+
     $form_state->setValueForElement($element['container']['cardinality'], NULL);
     $form_state->setValueForElement($element['container']['cardinality_number'], NULL);
+
+    $element['#value'] = $multiple;
     $form_state->setValueForElement($element, $multiple);
   }
 
